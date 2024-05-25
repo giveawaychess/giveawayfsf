@@ -350,15 +350,7 @@ void UCI::loop(int argc, char* argv[]) {
                            : token == "usi"  ? USI
                            : token == "ucci" ? UCCI
                            : XBOARD;
-          string defaultVariant = string(
-#ifdef LARGEBOARDS
-                                           CurrentProtocol == USI  ? "shogi"
-                                         : CurrentProtocol == UCCI || CurrentProtocol == UCI_CYCLONE ? "xiangqi"
-#else
-                                           CurrentProtocol == USI  ? "minishogi"
-                                         : CurrentProtocol == UCCI || CurrentProtocol == UCI_CYCLONE ? "minixiangqi"
-#endif
-                                                           : "chess");
+          string defaultVariant = string("giveaway");
           Options["UCI_Variant"].set_default(defaultVariant);
           std::istringstream ss("startpos");
           position(pos, ss, states);
@@ -433,14 +425,6 @@ string UCI::value(Value v) {
 
   stringstream ss;
 
-  if (CurrentProtocol == XBOARD)
-  {
-      if (abs(v) < VALUE_MATE_IN_MAX_PLY)
-          ss << v * 100 / PawnValueEg;
-      else
-          ss << (v > 0 ? XBOARD_VALUE_MATE + VALUE_MATE - v + 1 : -XBOARD_VALUE_MATE - VALUE_MATE - v - 1) / 2;
-  } else
-
   if (abs(v) < VALUE_MATE_IN_MAX_PLY)
       ss << (CurrentProtocol == UCCI ? "" : "cp ") << v * 100 / PawnValueEg;
   else if (CurrentProtocol == USI)
@@ -472,22 +456,7 @@ string UCI::wdl(Value v, int ply) {
 /// UCI::square() converts a Square to a string in algebraic notation (g1, a7, etc.)
 
 std::string UCI::square(const Position& pos, Square s) {
-#ifdef LARGEBOARDS
-  if (CurrentProtocol == USI)
-      return rank_of(s) < RANK_10 ? std::string{ char('1' + pos.max_file() - file_of(s)), char('a' + pos.max_rank() - rank_of(s)) }
-                                  : std::string{ char('0' + (pos.max_file() - file_of(s) + 1) / 10),
-                                                 char('0' + (pos.max_file() - file_of(s) + 1) % 10),
-                                                 char('a' + pos.max_rank() - rank_of(s)) };
-  else if (pos.max_rank() == RANK_10 && CurrentProtocol != UCI_GENERAL)
-      return std::string{ char('a' + file_of(s)), char('0' + rank_of(s)) };
-  else
-      return rank_of(s) < RANK_10 ? std::string{ char('a' + file_of(s)), char('1' + (rank_of(s) % 10)) }
-                                  : std::string{ char('a' + file_of(s)), char('0' + ((rank_of(s) + 1) / 10)),
-                                                 char('0' + ((rank_of(s) + 1) % 10)) };
-#else
-  return CurrentProtocol == USI ? std::string{ char('1' + pos.max_file() - file_of(s)), char('a' + pos.max_rank() - rank_of(s)) }
-                                : std::string{ char('a' + file_of(s)), char('1' + rank_of(s)) };
-#endif
+  return std::string{ char('a' + file_of(s)), char('1' + rank_of(s)) };
 }
 
 /// UCI::dropped_piece() generates a piece label string from a Move.
@@ -513,30 +482,12 @@ string UCI::move(const Position& pos, Move m) {
   Square to = to_sq(m);
 
   if (m == MOVE_NONE)
-      return CurrentProtocol == USI ? "resign" : "(none)";
+      return "(none)";
 
   if (m == MOVE_NULL)
       return "0000";
 
-  if (is_pass(m) && CurrentProtocol == XBOARD)
-      return "@@@@";
-
-  if (is_gating(m) && gating_square(m) == to)
-      from = to_sq(m), to = from_sq(m);
-  else if (type_of(m) == CASTLING && !pos.is_chess960())
-  {
-      to = make_square(to > from ? pos.castling_kingside_file() : pos.castling_queenside_file(), rank_of(from));
-      // If the castling move is ambiguous with a normal king move, switch to 960 notation
-      if (pos.pseudo_legal(make_move(from, to)))
-          to = to_sq(m);
-  }
-
-  string move = (type_of(m) == DROP ? UCI::dropped_piece(pos, m) + (CurrentProtocol == USI ? '*' : '@')
-                                    : UCI::square(pos, from)) + UCI::square(pos, to);
-
-  // Wall square
-  if (pos.walling() && CurrentProtocol == XBOARD)
-      move += "," + UCI::square(pos, to) + UCI::square(pos, gating_square(m));
+  string move = UCI::square(pos, from) + UCI::square(pos, to);
 
   if (type_of(m) == PROMOTION)
       move += pos.piece_to_char()[make_piece(BLACK, promotion_type(m))];
@@ -544,16 +495,6 @@ string UCI::move(const Position& pos, Move m) {
       move += '+';
   else if (type_of(m) == PIECE_DEMOTION)
       move += '-';
-  else if (is_gating(m))
-  {
-      move += pos.piece_to_char()[make_piece(BLACK, gating_type(m))];
-      if (gating_square(m) != from)
-          move += UCI::square(pos, gating_square(m));
-  }
-
-  // Wall square
-  if (pos.walling() && CurrentProtocol != XBOARD)
-      move += "," + UCI::square(pos, to) + UCI::square(pos, gating_square(m));
 
   return move;
 }

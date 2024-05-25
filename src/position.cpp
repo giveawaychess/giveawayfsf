@@ -103,22 +103,6 @@ std::ostream& operator<<(std::ostream& os, const Position& pos) {
   for (Bitboard b = pos.state()->chased; b; )
       os << UCI::square(pos, pop_lsb(b)) << " ";
 
-  if (    int(Tablebases::MaxCardinality) >= popcount(pos.pieces())
-      && Options["UCI_Variant"] == "chess"
-      && !pos.can_castle(ANY_CASTLING))
-  {
-      StateInfo st;
-      ASSERT_ALIGNED(&st, Eval::NNUE::CacheLineSize);
-
-      Position p;
-      p.set(pos.variant(), pos.fen(), pos.is_chess960(), &st, pos.this_thread());
-      Tablebases::ProbeState s1, s2;
-      Tablebases::WDLScore wdl = Tablebases::probe_wdl(p, &s1);
-      int dtz = Tablebases::probe_dtz(p, &s2);
-      os << "\nTablebases WDL: " << std::setw(4) << wdl << " (" << s1 << ")"
-         << "\nTablebases DTZ: " << std::setw(4) << dtz << " (" << s2 << ")";
-  }
-
   return os;
 }
 
@@ -159,9 +143,6 @@ void Position::init() {
 
   for (File f = FILE_A; f <= FILE_MAX; ++f)
       Zobrist::enpassant[f] = rng.rand<Key>();
-
-  for (int cr = NO_CASTLING; cr <= ANY_CASTLING; ++cr)
-      Zobrist::castling[cr] = rng.rand<Key>();
 
   Zobrist::side = rng.rand<Key>();
   Zobrist::noPawns = rng.rand<Key>();
@@ -353,62 +334,12 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
 
           token = char(toupper(token));
 
-          if (castling_enabled() && token == 'K')
-              for (rsq = make_square(var->castlingRookKingsideFile, castling_rank(c)); !(castling_rook_pieces(c) & type_of(piece_on(rsq))) || color_of(piece_on(rsq)) != c; --rsq) {}
-
-          else if (castling_enabled() && token == 'Q')
-              for (rsq = make_square(var->castlingRookQueensideFile, castling_rank(c)); !(castling_rook_pieces(c) & type_of(piece_on(rsq))) || color_of(piece_on(rsq)) != c; ++rsq) {}
-
-          else if (token >= 'A' && token <= 'A' + max_file())
+          if (token >= 'A' && token <= 'A' + max_file())
               rsq = make_square(File(token - 'A'), castling_rank(c));
 
           else
               continue;
-
-          // Determine castling "king" position
-          if (castling_enabled() && st->castlingKingSquare[c] == SQ_NONE)
-          {
-              Bitboard castlingKings = pieces(c, castling_king_piece(c)) & rank_bb(castling_rank(c));
-              // Ambiguity resolution for 960 variants with more than one "king"
-              // e.g., EAH means that an e-file king can castle with a- and h-file rooks
-              st->castlingKingSquare[c] =  isChess960 && piece_on(rsq) == make_piece(c, castling_king_piece(c)) ? rsq
-                                         : castlingKings && (!more_than_one(castlingKings) || isChess960) ? lsb(castlingKings)
-                                         : make_square(castling_king_file(), castling_rank(c));
-          }
-
-          // Set gates (and skip castling rights)
-          if (gating())
-          {
-              st->gatesBB[c] |= rsq;
-              if (token == 'K' || token == 'Q')
-                  st->gatesBB[c] |= st->castlingKingSquare[c];
-              // Do not set castling rights for gates unless there are no pieces in hand,
-              // which means that the file is referring to a chess960 castling right.
-              else if (!seirawan_gating() || count_in_hand(c, ALL_PIECES) > 0 || captures_to_hand())
-                  continue;
-          }
-
-          if (castling_enabled() && (castling_rook_pieces(c) & type_of(piece_on(rsq))) && color_of(piece_on(rsq)) == c)
-              set_castling_right(c, rsq);
       }
-
-      // Set castling rights for 960 gating variants
-      if (gating() && castling_enabled())
-          for (Color c : {WHITE, BLACK})
-              if ((gates(c) & pieces(castling_king_piece(c))) && !castling_rights(c) && (!seirawan_gating() || count_in_hand(c, ALL_PIECES) > 0 || captures_to_hand()))
-              {
-                  Bitboard castling_rooks = gates(c) & pieces(c);
-                  while (castling_rooks)
-                  {
-                      Square s = pop_lsb(castling_rooks);
-                      if (castling_rook_pieces(c) & type_of(piece_on(s)))
-                          set_castling_right(c, s);
-                  }
-              }
-
-      // counting limit
-      if (counting_rule() && isdigit(ss.peek()))
-          ss >> st->countingLimit;
 
       // 4. En passant square.
       // Ignore if square is invalid or not on side to move relative rank 6.
@@ -526,28 +457,6 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
   assert(pos_is_ok());
 
   return *this;
-}
-
-
-/// Position::set_castling_right() is a helper function used to set castling
-/// rights given the corresponding color and the rook starting square.
-
-void Position::set_castling_right(Color c, Square rfrom) {
-
-  assert(st->castlingKingSquare[c] != SQ_NONE);
-  Square kfrom = st->castlingKingSquare[c];
-  CastlingRights cr = c & (kfrom < rfrom ? KING_SIDE: QUEEN_SIDE);
-
-  st->castlingRights |= cr;
-  castlingRightsMask[kfrom] |= cr;
-  castlingRightsMask[rfrom] |= cr;
-  castlingRookSquare[cr] = rfrom;
-
-  Square kto = make_square(cr & KING_SIDE ? castling_kingside_file() : castling_queenside_file(), castling_rank(c));
-  Square rto = kto + (cr & KING_SIDE ? WEST : EAST);
-
-  castlingPath[cr] =   (between_bb(rfrom, rto) | between_bb(kfrom, kto))
-                    & ~(kfrom | rfrom);
 }
 
 
@@ -1751,34 +1660,8 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       st->materialKey ^= Zobrist::psq[pc][pieceCount[pc]-1];
       if (type_of(pc) != PAWN)
           st->nonPawnMaterial[us] += PieceValue[MG][pc];
-      // Set castling rights for dropped king or rook
-      if (castling_dropped_piece() && rank_of(to) == castling_rank(us))
-      {
-          if (type_of(pc) == castling_king_piece(us) && file_of(to) == castling_king_file())
-          {
-              st->castlingKingSquare[us] = to;
-              Bitboard castling_rooks =  pieces(us)
-                                       & rank_bb(castling_rank(us))
-                                       & (file_bb(FILE_A) | file_bb(max_file()));
-              while (castling_rooks)
-              {
-                  Square s = pop_lsb(castling_rooks);
-                  if (castling_rook_pieces(us) & type_of(piece_on(s)))
-                      set_castling_right(us, s);
-              }
-          }
-          else if (castling_rook_pieces(us) & type_of(pc))
-          {
-              if (   (file_of(to) == FILE_A || file_of(to) == max_file())
-                  && piece_on(make_square(castling_king_file(), castling_rank(us))) == make_piece(us, castling_king_piece(us)))
-              {
-                  st->castlingKingSquare[us] = make_square(castling_king_file(), castling_rank(us));
-                  set_castling_right(us, to);
-              }
-          }
-      }
   }
-  else if (type_of(m) != CASTLING)
+  else
   {
       if (Eval::useNNUE)
       {
