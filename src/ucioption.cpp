@@ -201,11 +201,7 @@ void init(OptionsMap& o) {
   o["Syzygy50MoveRule"]      << Option(true);
   o["SyzygyProbeLimit"]      << Option(7, 0, 7);
   o["Use NNUE"]              << Option(true, on_use_NNUE);
-#ifndef NNUE_EMBEDDING_OFF
-  o["EvalFile"]              << Option(EvalFileDefaultName, on_eval_file);
-#else
-  o["EvalFile"]              << Option("<empty>", on_eval_file);
-#endif
+  o["EvalFile"]              << Option("antichess-689c016df8e0.nnue", on_eval_file);
   o["TsumeMode"]             << Option(false);
   o["VariantPath"]           << Option("<empty>", on_variant_path);
   o["usemillisec"]           << Option(true); // time unit for UCCI

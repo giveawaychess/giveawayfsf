@@ -261,7 +261,7 @@ Score Entry::evaluate_shelter(const Position& pos, Square ksq) const {
 
       int d = std::min(File(edge_distance(f, pos.max_file())), FILE_D);
       bonus += make_score(ShelterStrength[d][ourRank], 0) * (1 + (pos.captures_to_hand() && ourRank <= RANK_2)
-                                                               + (pos.check_counting() && d == 0 && ourRank == RANK_2));
+                                                               + (0 && d == 0 && ourRank == RANK_2));
 
       if (ourRank && (ourRank == theirRank - 1))
           bonus -= BlockedStorm[theirRank];

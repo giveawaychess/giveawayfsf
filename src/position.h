@@ -1384,7 +1384,7 @@ inline bool Position::is_chess960() const {
 
 inline bool Position::capture_or_promotion(Move m) const {
   assert(is_ok(m));
-  return type_of(m) == PROMOTION || type_of(m) == EN_PASSANT || (type_of(m) != CASTLING && !empty(to_sq(m)));
+  return type_of(m) == EN_PASSANT || (type_of(m) != CASTLING && !empty(to_sq(m)));
 }
 
 inline bool Position::capture(Move m) const {

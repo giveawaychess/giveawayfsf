@@ -28,59 +28,7 @@ namespace {
   template<MoveType T>
   ExtMove* make_move_and_gating(const Position& pos, ExtMove* moveList, Color us, Square from, Square to, PieceType pt = NO_PIECE_TYPE) {
 
-    // Wall placing moves
-    //if it's "wall or move", and they chose non-null move, skip even generating wall move
-    if (pos.walling() && !(pos.variant()->wallOrMove && (from!=to)))
-    {
-        Bitboard b = pos.board_bb() & ~((pos.pieces() ^ from) | to);
-        if (T == CASTLING)
-        {
-            Square kto = make_square(to > from ? pos.castling_kingside_file() : pos.castling_queenside_file(), pos.castling_rank(us));
-            Direction step = kto > from ? EAST : WEST;
-            Square rto = kto - step;
-            b ^= square_bb(to) ^ kto ^ rto;
-        }
-        if (T == EN_PASSANT)
-            b ^= pos.capture_square(to);
-
-        if (pos.walling_rule() == ARROW)
-            b &= moves_bb(us, type_of(pos.piece_on(from)), to, pos.pieces() ^ from);
-
-        //Any current or future wall variant must follow the walling region rule if set:
-        b &= pos.variant()->wallingRegion[us];
-
-        if (pos.walling_rule() == PAST)
-            b &= square_bb(from);
-        if (pos.walling_rule() == EDGE)
-        {
-            Bitboard wallsquares = pos.state()->wallSquares;
-
-            b &= (FileABB | file_bb(pos.max_file()) | Rank1BB | rank_bb(pos.max_rank())) |
-               ( shift<NORTH     >(wallsquares) | shift<SOUTH     >(wallsquares)
-               | shift<EAST      >(wallsquares) | shift<WEST      >(wallsquares));
-        }
-        while (b)
-            *moveList++ = make_gating<T>(from, to, pt, pop_lsb(b));
-        return moveList;
-    }
-
     *moveList++ = make<T>(from, to, pt);
-
-    // Gating moves
-    if (pos.seirawan_gating() && (pos.gates(us) & from))
-        for (PieceSet ps = pos.piece_types(); ps;)
-        {
-            PieceType pt_gating = pop_lsb(ps);
-            if (pos.can_drop(us, pt_gating) && (pos.drop_region(us, pt_gating) & from))
-                *moveList++ = make_gating<T>(from, to, pt_gating, from);
-        }
-    if (pos.seirawan_gating() && T == CASTLING && (pos.gates(us) & to))
-        for (PieceSet ps = pos.piece_types(); ps;)
-        {
-            PieceType pt_gating = pop_lsb(ps);
-            if (pos.can_drop(us, pt_gating) && (pos.drop_region(us, pt_gating) & to))
-                *moveList++ = make_gating<T>(from, to, pt_gating, to);
-        }
 
     return moveList;
   }

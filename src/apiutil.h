@@ -397,11 +397,11 @@ inline bool has_insufficient_material(Color c, const Position& pos) {
     for (PieceType pt : { BISHOP, FERS, FERS_ALFIL, ALFIL, ELEPHANT })
         colorbound |= pos.pieces(pt) & ~restricted;
     unbound = pos.pieces() ^ restricted ^ colorbound;
-    if ((colorbound & pos.pieces(c)) && (((DarkSquares & colorbound) && (~DarkSquares & colorbound)) || unbound || pos.stalemate_value() != VALUE_DRAW || pos.check_counting() || pos.makpong()))
+    if ((colorbound & pos.pieces(c)) && (((DarkSquares & colorbound) && (~DarkSquares & colorbound)) || unbound || pos.stalemate_value() != VALUE_DRAW || 0 || pos.makpong()))
         return false;
 
     // Unbound pieces require one helper piece of either color
-    if ((pos.pieces(c) & unbound) && (popcount(pos.pieces() ^ restricted) >= 2 || pos.stalemate_value() != VALUE_DRAW || pos.check_counting() || pos.makpong()))
+    if ((pos.pieces(c) & unbound) && (popcount(pos.pieces() ^ restricted) >= 2 || pos.stalemate_value() != VALUE_DRAW || 0 || pos.makpong()))
         return false;
 
     // Non-draw stalemate with lone custom king
@@ -964,11 +964,6 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
 
     // check for pocket
     std::string pocket = "";
-    if (v->pieceDrops || v->seirawanGating)
-    {
-        if (check_pocket_info(fenParts[0], nbRanks, v, pocket) == NOK)
-            return FEN_INVALID_POCKET_INFO;
-    }
 
     // check for number of kings
     if (v->pieceTypes & KING)
@@ -1049,8 +1044,6 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
             if (check_en_passant_square(fenParts[3]) == NOK)
                 return FEN_INVALID_EN_PASSANT_SQ;
         }
-        else if (v->countingRule && !check_digit_field(fenParts[3]))
-            return FEN_INVALID_COUNTING_RULE;
     }
 
     // 5) Part

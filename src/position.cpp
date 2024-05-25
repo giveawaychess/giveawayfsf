@@ -663,15 +663,6 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
   if (can_castle(WHITE_OOO))
       ss << (chess960 ? char('A' + file_of(castling_rook_square(WHITE_OOO))) : 'Q');
 
-  if (gating() && gates(WHITE) && (!seirawan_gating() || count_in_hand(WHITE, ALL_PIECES) > 0 || captures_to_hand()))
-      for (File f = FILE_A; f <= max_file(); ++f)
-          if (   (gates(WHITE) & file_bb(f))
-              // skip gating flags redundant with castling flags
-              && !(!chess960 && can_castle(WHITE_CASTLING) && f == file_of(castling_king_square(WHITE)))
-              && !(can_castle(WHITE_OO ) && f == file_of(castling_rook_square(WHITE_OO )))
-              && !(can_castle(WHITE_OOO) && f == file_of(castling_rook_square(WHITE_OOO))))
-              ss << char('A' + f);
-
   // Disambiguation for chess960 "king" square
   if (chess960 && can_castle(BLACK_CASTLING) && popcount(pieces(BLACK, castling_king_piece(BLACK)) & rank_bb(castling_rank(BLACK))) > 1)
       ss << char('a' + castling_king_square(BLACK));
@@ -681,15 +672,6 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
 
   if (can_castle(BLACK_OOO))
       ss << (chess960 ? char('a' + file_of(castling_rook_square(BLACK_OOO))) : 'q');
-
-  if (gating() && gates(BLACK) && (!seirawan_gating() || count_in_hand(BLACK, ALL_PIECES) > 0 || captures_to_hand()))
-      for (File f = FILE_A; f <= max_file(); ++f)
-          if (   (gates(BLACK) & file_bb(f))
-              // skip gating flags redundant with castling flags
-              && !(!chess960 && can_castle(BLACK_CASTLING) && f == file_of(castling_king_square(BLACK)))
-              && !(can_castle(BLACK_OO ) && f == file_of(castling_rook_square(BLACK_OO )))
-              && !(can_castle(BLACK_OOO) && f == file_of(castling_rook_square(BLACK_OOO))))
-              ss << char('a' + f);
 
   if (!can_castle(ANY_CASTLING) && !(gating() && (gates(WHITE) | gates(BLACK))))
       ss << '-';
@@ -1795,49 +1777,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
   // Set capture piece
   st->capturedPiece = captured;
-
-  // Add gating piece
-  if (is_gating(m))
-  {
-      Square gate = gating_square(m);
-      Piece gating_piece = make_piece(us, gating_type(m));
-
-      if (Eval::useNNUE)
-      {
-          // Add gating piece
-          dp.piece[dp.dirty_num] = gating_piece;
-          dp.handPiece[dp.dirty_num] = gating_piece;
-          dp.handCount[dp.dirty_num] = pieceCountInHand[us][gating_type(m)];
-          dp.from[dp.dirty_num] = SQ_NONE;
-          dp.to[dp.dirty_num] = gate;
-          dp.dirty_num++;
-      }
-
-      put_piece(gating_piece, gate);
-      remove_from_hand(gating_piece);
-
-      st->gatesBB[us] ^= gate;
-      k ^= Zobrist::psq[gating_piece][gate];
-      st->materialKey ^= Zobrist::psq[gating_piece][pieceCount[gating_piece]];
-      st->nonPawnMaterial[us] += PieceValue[MG][gating_piece];
-  }
-
-  // Remove gates
-  if (gating())
-  {
-      if (is_ok(from) && (gates(us) & from))
-          st->gatesBB[us] ^= from;
-      if (type_of(m) == CASTLING && (gates(us) & to_sq(m)))
-          st->gatesBB[us] ^= to_sq(m);
-      if (gates(them) & to)
-          st->gatesBB[them] ^= to;
-      if (seirawan_gating() && count_in_hand(us, ALL_PIECES) == 0 && !captures_to_hand())
-          st->gatesBB[us] = 0;
-  }
-
-  // Remove king leaping right when aimed by a rook
-  if (cambodian_moves() && type_of(pc) == ROOK && (square<KING>(them) & gates(them) & attacks_bb<ROOK>(to)))
-      st->gatesBB[them] ^= square<KING>(them);
 
 
   // Remove the blast pieces
