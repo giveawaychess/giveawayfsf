@@ -343,34 +343,28 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
 
       // 4. En passant square.
       // Ignore if square is invalid or not on side to move relative rank 6.
-      else
-          while (   ((ss >> col) && (col >= 'a' && col <= 'a' + max_file()))
-                 && ((ss >> row) && (row >= '1' && row <= '1' + max_rank())))
-          {
-              Square epSquare = make_square(File(col - 'a'), Rank(row - '1'));
-#ifdef LARGEBOARDS
-              // Consider different rank numbering in CECP
-              if (max_rank() == RANK_10 && CurrentProtocol == XBOARD)
-                  epSquare += NORTH;
-#endif
+        while (   ((ss >> col) && (col >= 'a' && col <= 'a' + max_file()))
+                && ((ss >> row) && (row >= '1' && row <= '1' + max_rank())))
+        {
+            Square epSquare = make_square(File(col - 'a'), Rank(row - '1'));
 
-              // En passant square will be considered only if
-              // epSquare is within enPassantRegion and
-              // 1) variant has non-standard rules
-              // or
-              // 2)
-              // a) side to move have a pawn threatening epSquare
-              // b) there is an enemy pawn one or two (for triple steps) squares in front of epSquare
-              // c) there is no piece on epSquare or behind epSquare
-              if (   (var->enPassantRegion & epSquare)
-                  && (   !var->fastAttacks
-                      || (var->enPassantTypes[sideToMove] & ~piece_set(PAWN))
-                      || (   pawn_attacks_bb(~sideToMove, epSquare) & pieces(sideToMove, PAWN)
-                          && (   (pieces(~sideToMove, PAWN) & (epSquare + pawn_push(~sideToMove)))
-                              || (pieces(~sideToMove, PAWN) & (epSquare + 2 * pawn_push(~sideToMove))))
-                          && !(pieces() & (epSquare | (epSquare + pawn_push(sideToMove)))))))
-                  st->epSquares |= epSquare;
-          }
+            // En passant square will be considered only if
+            // epSquare is within enPassantRegion and
+            // 1) variant has non-standard rules
+            // or
+            // 2)
+            // a) side to move have a pawn threatening epSquare
+            // b) there is an enemy pawn one or two (for triple steps) squares in front of epSquare
+            // c) there is no piece on epSquare or behind epSquare
+            if (   (var->enPassantRegion & epSquare)
+                && (   !var->fastAttacks
+                    || (var->enPassantTypes[sideToMove] & ~piece_set(PAWN))
+                    || (   pawn_attacks_bb(~sideToMove, epSquare) & pieces(sideToMove, PAWN)
+                        && (   (pieces(~sideToMove, PAWN) & (epSquare + pawn_push(~sideToMove)))
+                            || (pieces(~sideToMove, PAWN) & (epSquare + 2 * pawn_push(~sideToMove))))
+                        && !(pieces() & (epSquare | (epSquare + pawn_push(sideToMove)))))))
+                st->epSquares |= epSquare;
+        }
   }
 
   // Check counter for nCheck
